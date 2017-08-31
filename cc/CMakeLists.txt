@@ -3,17 +3,26 @@ project(pydecoder)
 
 set(CMAKE_CXX_STANDARD 11)
 
+# could using value from env
 message("KALDI_ROOT = " $ENV{KALDI_ROOT})
 message("FST_ROOT   = " $ENV{FST_ROOT})
+
+set(KALDI_ROOT /home/wujian/Document/git/kaldi-5.2)
+set(FST_ROOT ${KALDI_ROOT}/tools/openfst)
 
 set(TARGET decoder-test)
 set(SOURCE_FILES decoder-test.cc py-online-nnet3-decoder.cc py-online-nnet3-decoder.h)
 
-include_directories($ENV{KALDI_ROOT}/src $ENV{FST_ROOT}/include)
-link_directories($ENV{KALDI_ROOT}/src/lib $ENV{FST_ROOT}/lib)
 
-# using Accelerate framework in OSX
-add_definitions(-O3 -g -std=c++11 -DHAVE_CLAPACK -framework Accelerate)
+# in Ubuntu using OpenBLAS
+include_directories(${KALDI_ROOT}/src ${KALDI_ROOT}/../OpenBLAS/install/include ${FST_ROOT}/include)
+link_directories(${KALDI_ROOT}/src/lib ${FST_ROOT}/lib)
+
+# in OSX using Accelerate framework
+# include_directories($ENV{KALDI_ROOT}/src $ENV{FST_ROOT}/include)
+# add_definitions(-O3 -g -std=c++11 -DHAVE_CLAPACK -framework Accelerate)
+
+add_definitions(-O3 -g -std=c++11 -DHAVE_OPENBLAS)
 add_executable(${TARGET} ${SOURCE_FILES})
 target_link_libraries(${TARGET} kaldi-base kaldi-util kaldi-matrix
         kaldi-cudamatrix kaldi-nnet3 kaldi-ivector kaldi-decoder

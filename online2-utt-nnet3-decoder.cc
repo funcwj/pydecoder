@@ -1,8 +1,6 @@
 #include "feat/wave-reader.h"
 #include "online2/online-nnet3-decoding.h"
-#include "online2/online-nnet2-feature-pipeline.h"
 #include "online2/onlinebin-util.h"
-#include "fstext/fstext-lib.h"
 #include "lat/lattice-functions.h"
 #include "nnet3/nnet-utils.h"
 
@@ -50,9 +48,11 @@ int main(int argc, const char *argv[]) {
             Input ki(net_filename, &binary);
             trans_model.Read(ki.Stream(), binary);
             am_nnet.Read(ki.Stream(), binary);
-            SetBatchnormTestMode(true, &(am_nnet.GetNnet()));
-            SetDropoutTestMode(true, &(am_nnet.GetNnet()));
-            nnet3::CollapseModel(nnet3::CollapseModelConfig(), &(am_nnet.GetNnet()));
+
+            nnet3::Nnet *nnet_ptr = &(am_nnet.GetNnet());
+            SetBatchnormTestMode(true, nnet_ptr);
+            SetDropoutTestMode(true, nnet_ptr);
+            nnet3::CollapseModel(nnet3::CollapseModelConfig(), nnet_ptr);
         }
 
         nnet3::DecodableNnetSimpleLoopedInfo decodable_info(decodable_opts, &am_nnet);
@@ -78,9 +78,16 @@ int main(int argc, const char *argv[]) {
         OnlineNnet2FeaturePipeline feature_pipeline(feature_info);
         // feature_pipeline.SetAdaptationState(adaptation_state);
 
-        SingleUtteranceNnet3Decoder decoder(decoder_config, trans_model,
-                                            decodable_info,
-                                            *decode_fst, &feature_pipeline);
+        // SingleUtteranceNnet3Decoder decoder(decoder_config, trans_model,
+        //                                     decodable_info,
+        //                                    *decode_fst, &feature_pipeline);
+
+        nnet3::DecodableAmNnetLoopedOnline decodable(trans_model, decodable_info,
+                                                     feature_pipeline.InputFeature(),
+                                                     feature_pipeline.IvectorFeature());
+
+        LatticeFasterOnlineDecoder online_decoder(decoder_config, decode_fst);
+        online_decoder.InitDecoding();
 
         BaseFloat samp_freq = wave_data.SampFreq();
         int32 chunk_size = int32(samp_freq * 0.05);
@@ -95,12 +102,16 @@ int main(int argc, const char *argv[]) {
             cur_offset += sample_num;
             if (cur_offset == data.Dim())
                 feature_pipeline.InputFinished();
-            decoder.AdvanceDecoding();
+            online_decoder.AdvanceDecoding(&decodable);
         }
 
-        decoder.FinalizeDecoding();
+        online_decoder.FinalizeDecoding();
+        Lattice raw_lat;
+        online_decoder.GetRawLattice(&raw_lat, true);
+
         CompactLattice clat;
-        decoder.GetLattice(true, &clat);
+        DeterminizeLatticePhonePrunedWrapper(
+                trans_model, &raw_lat, decoder_config.lattice_beam, &clat, decoder_config.det_opts);
 
         while (true) {
 
@@ -131,7 +142,8 @@ int main(int argc, const char *argv[]) {
             break;
         }
 
-        delete decode_fst;
+        // online_decoder take own of the fst and will free it
+        // delete decode_fst;
         delete word_syms;
         return 1;
 

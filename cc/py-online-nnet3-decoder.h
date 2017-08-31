@@ -22,30 +22,47 @@ public:
     PyOnlineNnet3Decoder(std::string config, std::string nnet3,
                         std::string fst, std::string wordsym);
     ~PyOnlineNnet3Decoder();
-    void ConfigSetup(std::string config);
-    void ResourceSetup(std::string nnet3, std::string fst,
-                       std::string wordsym);
-    void DecodeSetup();
-    void Decode(float *waveform, int32 sample_size);
+    void Decode(BaseFloat *waveform, int32 sample_size, BaseFloat sampling_rate);
     void Finalize();
 
 private:
     // config setup
+
+    // struct, could be local
     OnlineNnet2FeaturePipelineConfig feature_config;
+
     nnet3::NnetSimpleLoopedComputationOptions decodable_opts;
     LatticeFasterDecoderConfig decoder_config;
 
+
     // argument setup
-    TransitionModel trans_model;
-    nnet3::AmNnetSimple am_nnet;
-    fst::Fst<fst::StdArc> *decode_fst;
-    fst::SymbolTable *word_syms;
+    TransitionModel trans_model_;
+    nnet3::AmNnetSimple am_nnet_;
+    fst::Fst<fst::StdArc> *decode_fst_;
+    fst::SymbolTable *word_syms_;
 
     // decode setup
-    SingleUtteranceNnet3Decoder *decoder;
-    OnlineNnet2FeaturePipeline *feature_pipeline;
-    nnet3::DecodableNnetSimpleLoopedInfo *decodable_info;
+    // using param:
+    //   const OnlineNnet2FeaturePipelineConfig &;
+    OnlineNnet2FeaturePipelineInfo *feature_info_;
+    // using param:
+    //   const OnlineNnet2FeaturePipelineInfo &;
+    OnlineNnet2FeaturePipeline *feature_pipeline_;
 
+    // using param:
+    //    const NnetSimpleLoopedComputationOptions &,
+    //    AmNnetSimple *
+    nnet3::DecodableNnetSimpleLoopedInfo *decodable_info_;
+
+    // using param:
+    //   const DecodableNnetSimpleLoopedInfo &,
+    //   OnlineFeatureInterface *input_features,
+    //   OnlineFeatureInterface *ivector_features
+    nnet3::DecodableAmNnetLoopedOnline *decodable_;
+    // using param:
+    //  const LatticeFasterDecoderConfig &;
+    //  fst::Fst<fst::StdArc> * (delete the fst when decoder_ destroyed);
+    LatticeFasterOnlineDecoder *decoder_;
 };
 
 

@@ -5,10 +5,9 @@
 #include "py-online-nnet3-decoder.h"
 
 
-PyOnlineNnet3Decoder::PyOnlineNnet3Decoder(std::string config,
+OnlineNnet3Decoder::OnlineNnet3Decoder(std::string config,
                                            std::string nnet3_path,
-                                           std::string fst_path,
-                                           std::string wordsym_path) {
+                                           std::string fst_path) {
     ParseOptions po("");
     feature_config.Register(&po);
     decodable_opts.Register(&po);
@@ -26,7 +25,6 @@ PyOnlineNnet3Decoder::PyOnlineNnet3Decoder(std::string config,
     nnet3::CollapseModel(nnet3::CollapseModelConfig(), nnet);
 
     decode_fst_ = ReadFstKaldiGeneric(fst_path);
-    word_syms_  = fst::SymbolTable::ReadText(wordsym_path);
 
     feature_info_ = new OnlineNnet2FeaturePipelineInfo(feature_config);
     decodable_info_ = new nnet3::DecodableNnetSimpleLoopedInfo(decodable_opts, &am_nnet_);
@@ -39,62 +37,48 @@ PyOnlineNnet3Decoder::PyOnlineNnet3Decoder(std::string config,
 
 }
 
-PyOnlineNnet3Decoder::~PyOnlineNnet3Decoder() {
+OnlineNnet3Decoder::~OnlineNnet3Decoder() {
     delete feature_info_;
-    delete word_syms_;
     delete decodable_info_;
     delete feature_pipeline_;
     delete decoder_;    // delete decode_fst also
 }
 
 
-void PyOnlineNnet3Decoder::Decode(BaseFloat *waveform, int32 sample_size, BaseFloat sampling_rate) {
+void OnlineNnet3Decoder::DecodeWaveform(BaseFloat *waveform,
+                                  int32 sample_size,
+                                  BaseFloat sampling_rate) {
+
     SubVector<BaseFloat> wave_part(waveform, sample_size);
     feature_pipeline_->AcceptWaveform(sampling_rate, wave_part);
+    feature_pipeline_->InputFinished();
     decoder_->AdvanceDecoding(decodable_);
 }
 
-void PyOnlineNnet3Decoder::Finalize() {
+void OnlineNnet3Decoder::GetDecodeSequence(std::vector<int32> *words) {
 
     decoder_->FinalizeDecoding();
 
     Lattice raw_lat;
     decoder_->GetRawLattice(&raw_lat, true);
-
-    KALDI_LOG << "lattice-beam: " << decoder_config.lattice_beam;
-    KALDI_LOG << "min-active: " << decoder_config.min_active;
-    KALDI_LOG << "max-active: " << decoder_config.max_active;
-
     CompactLattice clat;
     DeterminizeLatticePhonePrunedWrapper(
-            trans_model_, &raw_lat, decoder_config.lattice_beam, &clat, decoder_config.det_opts);
+            trans_model_, &raw_lat, decoder_config.lattice_beam,
+            &clat, decoder_config.det_opts);
 
-    while (true) {
+    KALDI_ASSERT(clat.NumStates());
 
-        if (clat.NumStates() == 0) {
-            KALDI_LOG << "Got empty lattice.";
-            break;
-        }
-        CompactLattice best_path_clat;
-        CompactLatticeShortestPath(clat, &best_path_clat);
+    CompactLattice best_path_clat;
+    CompactLatticeShortestPath(clat, &best_path_clat);
 
-        Lattice best_path_lat;
-        ConvertLattice(best_path_clat, &best_path_lat);
+    Lattice best_path_lat;
+    ConvertLattice(best_path_clat, &best_path_lat);
 
-        std::vector<int32> words;
-        std::vector<int32> alignment;
-        LatticeWeight weight;
-        double likelihood;
+    std::vector<int32> alignment;
+    LatticeWeight weight;
+    GetLinearSymbolSequence(best_path_lat, &alignment, words, &weight);
 
-        GetLinearSymbolSequence(best_path_lat, &alignment, &words, &weight);
-        likelihood = -(weight.Value1() + weight.Value2());
-
-        for (size_t i = 0; i < words.size(); i++) {
-            std::string s = word_syms_->Find(words[i]);
-            KALDI_ASSERT(s != "");
-            std::cerr << s << ' ';
-        }
-        std::cerr << "[Average likelihood = " << likelihood / alignment.size() << "]" << std::endl;
-        break;
-    }
+    KALDI_LOG << "[Average likelihood = "
+              << -(weight.Value1() + weight.Value2()) / alignment.size()
+              << "]" << std::endl;
 }

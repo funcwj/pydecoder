@@ -17,13 +17,13 @@ using namespace kaldi;
 using namespace fst;
 
 
-class PyOnlineNnet3Decoder {
+class OnlineNnet3Decoder {
 public:
-    PyOnlineNnet3Decoder(std::string config, std::string nnet3,
-                        std::string fst, std::string wordsym);
-    ~PyOnlineNnet3Decoder();
-    void Decode(BaseFloat *waveform, int32 sample_size, BaseFloat sampling_rate);
-    void Finalize();
+    OnlineNnet3Decoder(std::string config, std::string nnet3,
+                        std::string fst);
+    ~OnlineNnet3Decoder();
+    void DecodeWaveform(BaseFloat *waveform, int32 sample_size, BaseFloat sampling_rate);
+    void GetDecodeSequence(std::vector<int32> *words);
 
 private:
     // config setup
@@ -39,7 +39,7 @@ private:
     TransitionModel trans_model_;
     nnet3::AmNnetSimple am_nnet_;
     fst::Fst<fst::StdArc> *decode_fst_;
-    fst::SymbolTable *word_syms_;
+    // fst::SymbolTable *word_syms_;
 
     // decode setup
     // using param:

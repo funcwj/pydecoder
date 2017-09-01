@@ -108,39 +108,34 @@ int main(int argc, const char *argv[]) {
         online_decoder.FinalizeDecoding();
         Lattice raw_lat;
         online_decoder.GetRawLattice(&raw_lat, true);
+        raw_lat.Write("raw_lat.fst");
 
         CompactLattice clat;
         DeterminizeLatticePhonePrunedWrapper(
                 trans_model, &raw_lat, decoder_config.lattice_beam, &clat, decoder_config.det_opts);
 
-        while (true) {
 
-            if (clat.NumStates() == 0) {
-                KALDI_LOG << "Got empty lattice.";
-                break;
-            }
-            CompactLattice best_path_clat;
-            CompactLatticeShortestPath(clat, &best_path_clat);
+        KALDI_ASSERT(clat.NumStates());
 
-            Lattice best_path_lat;
-            ConvertLattice(best_path_clat, &best_path_lat);
+        CompactLattice best_path_clat;
+        CompactLatticeShortestPath(clat, &best_path_clat);
 
-            std::vector<int32> words;
-            std::vector<int32> alignment;
-            LatticeWeight weight;
-            double likelihood;
-        
-            GetLinearSymbolSequence(best_path_lat, &alignment, &words, &weight);
-            likelihood = -(weight.Value1() + weight.Value2());
+        Lattice best_path_lat;
+        ConvertLattice(best_path_clat, &best_path_lat);
 
-            for (size_t i = 0; i < words.size(); i++) {
-                std::string s = word_syms->Find(words[i]);
-                KALDI_ASSERT(s != "");
-                std::cerr << s << ' ';
-            }
-            std::cerr << "[Average likelihood = " << likelihood / alignment.size() << "]" << std::endl;
-            break;
+        std::vector<int32> words;
+        std::vector<int32> alignment;
+        LatticeWeight weight;
+    
+        GetLinearSymbolSequence(best_path_lat, &alignment, &words, &weight);
+        double likelihood = -(weight.Value1() + weight.Value2());
+
+        for (size_t i = 0; i < words.size(); i++) {
+            std::string s = word_syms->Find(words[i]);
+            KALDI_ASSERT(s != "");
+            std::cerr << s << ' ';
         }
+        std::cerr << "[Average likelihood = " << likelihood / alignment.size() << "]" << std::endl;
 
         // online_decoder take own of the fst and will free it
         // delete decode_fst;

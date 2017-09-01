@@ -2,8 +2,16 @@
 *.so
 build/
 .idea/
+.vscode/
 cmake-build-debug/
 cc/build/
 cc/.idea/
 cc/cmake-build-debug/
+pywrapper/build/
+pywrapper/kaldi/
+pywrapper/openblas/
+pywrapper/openfst/
+pywrapper/*.cpp
+pywrapper/*.so
+
 
